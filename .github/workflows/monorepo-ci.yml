@@ -10,57 +10,52 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      changed-services: ${{ steps.detect.outputs.changed }}
+      services: ${{ steps.set.outputs.services }}
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Detect changed folders
+      - name: Detect changed services
         id: detect
         run: |
-          CHANGED=()
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | cut -d'/' -f1 | sort -u)
+          SERVICES=()
 
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            FILES=$(git diff --name-only HEAD~1 HEAD)
-          else
-            FILES=$(git ls-files)
+          for S in service-a service-b service-c; do
+            if echo "$CHANGED" | grep -q "^$S$"; then
+              SERVICES+=("\"$S\"")
+            fi
+          done
+
+          if [ ${#SERVICES[@]} -eq 0 ]; then
+            SERVICES=("\"service-a\"" "\"service-b\"" "\"service-c\"")
           fi
 
-          [[ "$FILES" =~ ^service-a/ ]] && CHANGED+=("service-a")
-          [[ "$FILES" =~ ^service-b/ ]] && CHANGED+=("service-b")
-          [[ "$FILES" =~ ^service-c/ ]] && CHANGED+=("service-c")
+          # Convert to one-line JSON
+          JSON=$(printf '[%s]' "$(IFS=,; echo "${SERVICES[*]}")")
 
-          # Default to all services if none detected
-          if [ ${#CHANGED[@]} -eq 0 ]; then
-            CHANGED=("service-a" "service-b" "service-c")
-          fi
+          echo "Detected: $JSON"
+          echo "services=$JSON" >> $GITHUB_OUTPUT
 
-          # Convert to **single-line JSON** for GitHub Actions
-          CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -c -s .)
-
-          echo "Detected services: $CHANGED_JSON"
-          echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
+      - name: Set output
+        id: set
+        run: echo "services=${{ steps.detect.outputs.services }}" >> $GITHUB_OUTPUT
 
   build-and-test:
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.changed-services != '[]' }}
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.changed-services) }}
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: 20
 
       - name: Install dependencies
         working-directory: ${{ matrix.service }}
@@ -68,8 +63,8 @@ jobs:
 
       - name: Build
         working-directory: ${{ matrix.service }}
-        run: npm run build || echo "No build script, skipping"
+        run: npm run build
 
       - name: Test
         working-directory: ${{ matrix.service }}
-        run: npm run test
+        run: npm test
