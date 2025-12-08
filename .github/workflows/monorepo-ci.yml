@@ -23,7 +23,7 @@ jobs:
       - name: Detect changed folders
         id: detect
         run: |
-          CHANGED="[]"
+          CHANGED=()
 
           # Safe file detection: first commit fallback
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
@@ -33,17 +33,20 @@ jobs:
           fi
 
           if echo "$FILES" | grep -q "^service-a/"; then
-            CHANGED=$(echo $CHANGED | jq '. + ["service-a"]')
+            CHANGED+=("service-a")
           fi
           if echo "$FILES" | grep -q "^service-b/"; then
-            CHANGED=$(echo $CHANGED | jq '. + ["service-b"]')
+            CHANGED+=("service-b")
           fi
           if echo "$FILES" | grep -q "^service-c/"; then
-            CHANGED=$(echo $CHANGED | jq '. + ["service-c"]')
+            CHANGED+=("service-c")
           fi
 
-          echo "Detected services: $CHANGED"
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          # Convert to single-line JSON for GitHub Actions output
+          CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -s .)
+
+          echo "Detected services: $CHANGED_JSON"
+          echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
 
   build-and-test:
     needs: detect-changes
@@ -73,4 +76,4 @@ jobs:
 
       - name: Test
         working-directory: ${{ matrix.service }}
-        run: npm run test || echo "No test script, skipping"
+        run: npm run test
