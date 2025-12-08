@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "build": "echo Building Service B",
-    "test": "echo Testing Service B"
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0"
   }
 }
