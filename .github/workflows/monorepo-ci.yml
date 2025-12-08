@@ -10,41 +10,38 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      changed-services: ${{ steps.set-output.outputs.changed }}
+      changed-services: ${{ steps.detect.outputs.changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Detect changed services
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Detect changed folders
         id: detect
         run: |
-          echo "Detecting changes..."
+          echo "[]"
           CHANGED="[]"
 
-          if git diff --name-only HEAD~1 HEAD | grep -q "^service-a/"; then
+          FILES=$(git diff --name-only HEAD~1 HEAD)
+
+          if echo "$FILES" | grep -q "^service-a/"; then
             CHANGED=$(echo $CHANGED | jq '. + ["service-a"]')
           fi
-          if git diff --name-only HEAD~1 HEAD | grep -q "^service-b/"; then
+          if echo "$FILES" | grep -q "^service-b/"; then
             CHANGED=$(echo $CHANGED | jq '. + ["service-b"]')
           fi
-          if git diff --name-only HEAD~1 HEAD | grep -q "^service-c/"; then
+          if echo "$FILES" | grep -q "^service-c/"; then
             CHANGED=$(echo $CHANGED | jq '. + ["service-c"]')
           fi
 
-          echo "Detected: $CHANGED"
-
+          echo "Detected services: $CHANGED"
           echo "changed=$CHANGED" >> $GITHUB_OUTPUT
-
-      - name: Install jq (JSON parser)
-        run: sudo apt-get install -y jq
-
-      - name: Set output
-        id: set-output
-        run: echo "changed=$(echo ${{ steps.detect.outputs.changed }})" >> $GITHUB_OUTPUT
 
   build-and-test:
     needs: detect-changes
-    if: ${{ fromJson(needs.detect-changes.outputs.changed-services) != '' }}
+    if: ${{ needs.detect-changes.outputs.changed-services != '[]' }}
     runs-on: ubuntu-latest
 
     strategy:
