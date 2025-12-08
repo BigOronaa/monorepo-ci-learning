@@ -18,18 +18,62 @@ jobs:
           fetch-depth: 2
 
       - name: Install jq
-        run: sudo apt-get install -y jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Detect changed folders
+      - name: Detect changed services
         id: detect
+        shell: bash
         run: |
-          CHANGED=()
-
-          # Use HEAD~1 if it exists, else fallback to all files
+          # Get files changed in last commit, fallback to all files
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             FILES=$(git diff --name-only HEAD~1 HEAD)
           else
             FILES=$(git ls-files)
           fi
 
-          [[ "$FILES" =~ ^service-a/ ]]
+          SERVICES=()
+
+          for S in service-a service-b service-c; do
+            if echo "$FILES" | grep -q "^$S/"; then
+              SERVICES+=("$S")
+            fi
+          done
+
+          # Default to all services if none detected
+          if [ ${#SERVICES[@]} -eq 0 ]; then
+            SERVICES=("service-a" "service-b" "service-c")
+          fi
+
+          # Convert to one-line JSON for GitHub Actions
+          SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -c -s .)
+
+          echo "Detected services: $SERVICES_JSON"
+          echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+
+  build-and-test:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service }}
+        run: npm install
+
+      - name: Build
+        working-directory: ${{ matrix.service }}
+        run: npm run build || echo "No build script"
+
+      - name: Run tests
+        working-directory: ${{ matrix.service }}
+        run: npm test
