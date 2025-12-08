@@ -39,7 +39,9 @@ jobs:
             CHANGED=("service-a" "service-b" "service-c")
           fi
 
-          CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -s .)
+          # Convert to **single-line JSON** for GitHub Actions
+          CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -c -s .)
+
           echo "Detected services: $CHANGED_JSON"
           echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
 
