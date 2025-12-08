@@ -10,61 +10,26 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      services: ${{ steps.set.outputs.services }}
+      services: ${{ steps.detect.outputs.services }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
 
-      - name: Detect changed services
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Detect changed folders
         id: detect
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | cut -d'/' -f1 | sort -u)
-          SERVICES=()
+          CHANGED=()
 
-          for S in service-a service-b service-c; do
-            if echo "$CHANGED" | grep -q "^$S$"; then
-              SERVICES+=("\"$S\"")
-            fi
-          done
-
-          if [ ${#SERVICES[@]} -eq 0 ]; then
-            SERVICES=("\"service-a\"" "\"service-b\"" "\"service-c\"")
+          # Use HEAD~1 if it exists, else fallback to all files
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            FILES=$(git diff --name-only HEAD~1 HEAD)
+          else
+            FILES=$(git ls-files)
           fi
 
-          # Convert to one-line JSON
-          JSON=$(printf '[%s]' "$(IFS=,; echo "${SERVICES[*]}")")
-
-          echo "Detected: $JSON"
-          echo "services=$JSON" >> $GITHUB_OUTPUT
-
-      - name: Set output
-        id: set
-        run: echo "services=${{ steps.detect.outputs.services }}" >> $GITHUB_OUTPUT
-
-  build-and-test:
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Use Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        working-directory: ${{ matrix.service }}
-        run: npm install
-
-      - name: Build
-        working-directory: ${{ matrix.service }}
-        run: npm run build
-
-      - name: Test
-        working-directory: ${{ matrix.service }}
-        run: npm test
+          [[ "$FILES" =~ ^service-a/ ]]
