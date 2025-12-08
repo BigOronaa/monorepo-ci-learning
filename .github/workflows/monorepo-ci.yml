@@ -12,10 +12,9 @@ jobs:
     outputs:
       changed-services: ${{ steps.detect.outputs.changed }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
-          fetch-depth: 2   # ensure HEAD~1 exists
+          fetch-depth: 2
 
       - name: Install jq
         run: sudo apt-get install -y jq
@@ -25,26 +24,22 @@ jobs:
         run: |
           CHANGED=()
 
-          # Safe file detection: first commit fallback
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             FILES=$(git diff --name-only HEAD~1 HEAD)
           else
             FILES=$(git ls-files)
           fi
 
-          if echo "$FILES" | grep -q "^service-a/"; then
-            CHANGED+=("service-a")
-          fi
-          if echo "$FILES" | grep -q "^service-b/"; then
-            CHANGED+=("service-b")
-          fi
-          if echo "$FILES" | grep -q "^service-c/"; then
-            CHANGED+=("service-c")
+          [[ "$FILES" =~ ^service-a/ ]] && CHANGED+=("service-a")
+          [[ "$FILES" =~ ^service-b/ ]] && CHANGED+=("service-b")
+          [[ "$FILES" =~ ^service-c/ ]] && CHANGED+=("service-c")
+
+          # Default to all services if none detected
+          if [ ${#CHANGED[@]} -eq 0 ]; then
+            CHANGED=("service-a" "service-b" "service-c")
           fi
 
-          # Convert to single-line JSON for GitHub Actions output
           CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -s .)
-
           echo "Detected services: $CHANGED_JSON"
           echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
 
@@ -58,8 +53,7 @@ jobs:
         service: ${{ fromJson(needs.detect-changes.outputs.changed-services) }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Use Node.js
         uses: actions/setup-node@v3
