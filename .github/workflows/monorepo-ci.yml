@@ -52,7 +52,6 @@ jobs:
       fail-fast: false
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -71,14 +70,6 @@ jobs:
         run: |
           echo "Listing contents of ${{ matrix.service }}"
           ls -la ${{ matrix.service }}
-
-      - name: Cache node_modules
-        uses: actions/cache@v3
-        with:
-          path: ${{ matrix.service }}/node_modules
-          key: node-modules-${{ matrix.service }}-${{ hashFiles(format('{0}/package-lock.json', matrix.service)) }}
-          restore-keys: |
-            node-modules-${{ matrix.service }}-
 
       - name: Install dependencies
         working-directory: ${{ matrix.service }}
@@ -108,3 +99,26 @@ jobs:
             echo "No test script; failing intentionally"
             exit 1
           fi
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Deploy service
+        working-directory: ${{ matrix.service }}
+        run: |
+          echo "Deploying ${{ matrix.service }}..."
+          # Replace this line with your actual deployment command, e.g.:
+          # npm run deploy
