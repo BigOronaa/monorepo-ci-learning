@@ -72,6 +72,14 @@ jobs:
           echo "Listing contents of ${{ matrix.service }}"
           ls -la ${{ matrix.service }}
 
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ matrix.service }}/node_modules
+          key: node-modules-${{ matrix.service }}-${{ hashFiles(matrix.service + '/package-lock.json') }}
+          restore-keys: |
+            node-modules-${{ matrix.service }}-
+
       - name: Install dependencies
         working-directory: ${{ matrix.service }}
         run: |
