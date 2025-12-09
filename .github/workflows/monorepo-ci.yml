@@ -25,7 +25,7 @@ jobs:
         id: detect
         shell: bash
         run: |
-          # get changed files or fallback to all files (first commit)
+          # fallback to all files on first commit
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             FILES=$(git diff --name-only HEAD~1 HEAD)
           else
@@ -39,25 +39,23 @@ jobs:
             fi
           done
 
-          # default to all services if nothing detected
+          # default to all services if none detected
           if [ ${#SERVICES[@]} -eq 0 ]; then
             SERVICES=("service-a" "service-b" "service-c")
           fi
 
-          # create compact single-line JSON safe for GitHub Actions
+          # convert to single-line JSON for GitHub Actions
           SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -c -s .)
-
           echo "Detected services: $SERVICES_JSON"
           echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
 
   build-and-test:
     needs: detect-changes
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services || '["service-a","service-b","service-c"]') }}
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
 
     steps:
       - name: Checkout repository
@@ -70,22 +68,17 @@ jobs:
 
       - name: Debug: Node & npm versions
         run: |
-          node -v
-          npm -v
+          echo "Node version: $(node -v)"
+          echo "npm version: $(npm -v)"
 
-      - name: Debug: List service folder contents
+      - name: Debug: List service folder
         run: |
-          echo "Listing folder ${{ matrix.service }}"
+          echo "Listing contents of ${{ matrix.service }}"
           ls -la ${{ matrix.service }}
 
       - name: Install dependencies
         working-directory: ${{ matrix.service }}
         run: |
-          if [ ! -f package.json ]; then
-            echo "ERROR: package.json not found in $PWD"
-            exit 1
-          fi
-
           if [ -f package-lock.json ]; then
             npm ci --no-audit --no-fund
           else
@@ -98,16 +91,16 @@ jobs:
           if npm run | grep -q " build"; then
             npm run build
           else
-            echo "No build script defined; skipping build"
+            echo "No build script; skipping build"
           fi
 
       - name: Test
         working-directory: ${{ matrix.service }}
         run: |
           if npm run | grep -q " test"; then
-            echo "Running tests via npx jest"
-            npx jest
+            echo "Running Jest tests..."
+            npm test
           else
-            echo "No test script defined; failing intentionally"
+            echo "No test script; failing intentionally"
             exit 1
           fi
