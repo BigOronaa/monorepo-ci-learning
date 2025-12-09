@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.detect.outputs.services }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -25,7 +24,6 @@ jobs:
         id: detect
         shell: bash
         run: |
-          # fallback to all files on first commit
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             FILES=$(git diff --name-only HEAD~1 HEAD)
           else
@@ -39,12 +37,10 @@ jobs:
             fi
           done
 
-          # default to all services if none detected
           if [ ${#SERVICES[@]} -eq 0 ]; then
             SERVICES=("service-a" "service-b" "service-c")
           fi
 
-          # convert to single-line JSON for GitHub Actions
           SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -c -s .)
           echo "Detected services: $SERVICES_JSON"
           echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
@@ -66,12 +62,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Debug: Node & npm versions
+      - name: Debug Node & npm
         run: |
           echo "Node version: $(node -v)"
           echo "npm version: $(npm -v)"
 
-      - name: Debug: List service folder
+      - name: List service folder
         run: |
           echo "Listing contents of ${{ matrix.service }}"
           ls -la ${{ matrix.service }}
@@ -98,7 +94,7 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: |
           if npm run | grep -q " test"; then
-            echo "Running Jest tests..."
+            echo "Running tests via npm test..."
             npm test
           else
             echo "No test script; failing intentionally"
