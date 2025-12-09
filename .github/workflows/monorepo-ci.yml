@@ -44,8 +44,9 @@ jobs:
             SERVICES=("service-a" "service-b" "service-c")
           fi
 
-          # convert to JSON safe for GitHub Actions
+          # create compact single-line JSON safe for GitHub Actions
           SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -c -s .)
+
           echo "Detected services: $SERVICES_JSON"
           echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
 
@@ -56,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+        service: ${{ fromJson(needs.detect-changes.outputs.services || '["service-a","service-b","service-c"]') }}
 
     steps:
       - name: Checkout repository
@@ -72,7 +73,7 @@ jobs:
           node -v
           npm -v
 
-      - name: Debug: List service folder
+      - name: Debug: List service folder contents
         run: |
           echo "Listing folder ${{ matrix.service }}"
           ls -la ${{ matrix.service }}
@@ -80,6 +81,11 @@ jobs:
       - name: Install dependencies
         working-directory: ${{ matrix.service }}
         run: |
+          if [ ! -f package.json ]; then
+            echo "ERROR: package.json not found in $PWD"
+            exit 1
+          fi
+
           if [ -f package-lock.json ]; then
             npm ci --no-audit --no-fund
           else
@@ -92,7 +98,7 @@ jobs:
           if npm run | grep -q " build"; then
             npm run build
           else
-            echo "No build script; skipping build"
+            echo "No build script defined; skipping build"
           fi
 
       - name: Test

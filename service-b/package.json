@@ -2,7 +2,10 @@
   "name": "service-b",
   "version": "1.0.0",
   "scripts": {
-    "build": "echo Building Service B",
-    "test": "node test.js"
+    "build": "echo Building service-b",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0"
   }
 }
