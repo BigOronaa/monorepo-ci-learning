@@ -20,11 +20,11 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Detect changed services
+      - name: Detect changed folders
         id: detect
         shell: bash
         run: |
-          # Get files changed in last commit, fallback to all files
+          # get changed files or fallback to all files (first commit)
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             FILES=$(git diff --name-only HEAD~1 HEAD)
           else
@@ -32,19 +32,18 @@ jobs:
           fi
 
           SERVICES=()
-
           for S in service-a service-b service-c; do
             if echo "$FILES" | grep -q "^$S/"; then
               SERVICES+=("$S")
             fi
           done
 
-          # Default to all services if none detected
+          # default to all services if nothing detected
           if [ ${#SERVICES[@]} -eq 0 ]; then
             SERVICES=("service-a" "service-b" "service-c")
           fi
 
-          # Convert to one-line JSON for GitHub Actions
+          # create compact single-line JSON safe for GitHub Actions
           SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -c -s .)
 
           echo "Detected services: $SERVICES_JSON"
@@ -54,6 +53,7 @@ jobs:
     needs: detect-changes
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
 
@@ -66,14 +66,56 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Debug: Node & npm versions
+        run: |
+          echo "=== Node & npm versions ==="
+          node -v || echo "node not found"
+          npm -v || echo "npm not found"
+          echo
+
+      - name: Debug: list service folder contents
+        run: |
+          echo "=== Listing working directory for ${{ matrix.service }} ==="
+          ls -la ${{ matrix.service }} || { echo "Service folder '${{ matrix.service }}' not found"; exit 1; }
+          if [ -f "${{ matrix.service }}/package.json" ]; then
+            echo "=== package.json contents ==="
+            sed -n '1,200p' "${{ matrix.service }}/package.json" || true
+          else
+            echo "No package.json found in ${{ matrix.service }}"
+          fi
+          echo
+
       - name: Install dependencies
         working-directory: ${{ matrix.service }}
-        run: npm install
+        run: |
+          if [ ! -f package.json ]; then
+            echo "ERROR: package.json not found in $PWD"
+            exit 1
+          fi
+          # prefer npm ci in CI (if lockfile present), fallback to npm install
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
 
-      - name: Build
+      - name: Build (if present)
         working-directory: ${{ matrix.service }}
-        run: npm run build || echo "No build script"
+        run: |
+          # run build if script exists, else skip
+          if npm run | grep -q " build"; then
+            npm run build
+          else
+            echo "No build script defined; skipping build"
+          fi
 
-      - name: Run tests
+      - name: Test
         working-directory: ${{ matrix.service }}
-        run: npm test
+        run: |
+          # make sure test script exists
+          if npm run | grep -q " test"; then
+            npm test
+          else
+            echo "No test script defined; failing so you notice"
+            exit 1
+          fi
