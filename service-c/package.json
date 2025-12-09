@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "scripts": {
     "build": "echo Building Service C",
-    "test": "jest"
-  },
-  "devDependencies": {
-    "jest": "^30.2.0"
+    "test": "node test.js"
   }
 }
