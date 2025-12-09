@@ -24,6 +24,7 @@ jobs:
         id: detect
         shell: bash
         run: |
+          # get changed files or fallback to all files (first commit)
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             FILES=$(git diff --name-only HEAD~1 HEAD)
           else
@@ -37,6 +38,7 @@ jobs:
             fi
           done
 
+          # default to all services if nothing detected
           if [ ${#SERVICES[@]} -eq 0 ]; then
             SERVICES=("service-a" "service-b" "service-c")
           fi
@@ -102,6 +104,7 @@ jobs:
 
   deploy:
     needs: build-and-test
+    if: ${{ needs.detect-changes.outputs.services != '[]' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -111,14 +114,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
       - name: Deploy service
         working-directory: ${{ matrix.service }}
         run: |
           echo "Deploying ${{ matrix.service }}..."
-          # Replace this line with your actual deployment command, e.g.:
-          # npm run deploy
+          # replace the following line with your actual deploy command
+          echo "Deploy complete for ${{ matrix.service }}"
