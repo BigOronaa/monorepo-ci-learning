@@ -77,4 +77,43 @@ jobs:
       - name: Debug: list service folder contents
         run: |
           echo "=== Listing working directory for ${{ matrix.service }} ==="
-          ls -la ${{ matrix.ser
+          ls -la ${{ matrix.service }} || { echo "Service folder '${{ matrix.service }}' not found"; exit 1; }
+          if [ -f "${{ matrix.service }}/package.json" ]; then
+            echo "=== package.json contents ==="
+            sed -n '1,200p' "${{ matrix.service }}/package.json" || true
+          else
+            echo "No package.json found in ${{ matrix.service }}"
+          fi
+          echo
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service }}
+        run: |
+          if [ ! -f package.json ]; then
+            echo "ERROR: package.json not found in $PWD"
+            exit 1
+          fi
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build (if present)
+        working-directory: ${{ matrix.service }}
+        run: |
+          if npm run | grep -q " build"; then
+            npm run build
+          else
+            echo "No build script defined; skipping build"
+          fi
+
+      - name: Test
+        working-directory: ${{ matrix.service }}
+        run: |
+          if npm run | grep -q " test"; then
+            npm test
+          else
+            echo "No test script defined; failing so you notice"
+            exit 1
+          fi
